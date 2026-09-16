@@ -1,0 +1,92 @@
+name: Release & Package Smart Switcher
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g. 1.0.0)'
+        required: false
+        default: '1.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install Velopack CLI (vpk)
+        run: dotnet tool install -g vpk
+
+      - name: Run Unit Tests
+        run: dotnet test tests/SmartSwitcher.Tests/SmartSwitcher.Tests.csproj --configuration Release --verbosity normal
+
+      - name: Publish Self-Contained Win-x64 Binaries
+        run: |
+          dotnet publish src/SmartSwitcher/SmartSwitcher.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=false `
+            -o publish
+
+      - name: Determine Release Version
+        id: get_version
+        shell: pwsh
+        run: |
+          $ver = "${{ github.event.inputs.version }}"
+          if ([string]::IsNullOrWhiteSpace($ver)) {
+            $ver = "${{ github.ref_name }}".TrimStart('v')
+          }
+          if ([string]::IsNullOrWhiteSpace($ver) -or $ver -notmatch '^\d+\.\d+\.\d+') {
+            $ver = "1.0.0"
+          }
+          echo "VERSION=$ver" >> $env:GITHUB_OUTPUT
+          Write-Host "Packaging version: $ver"
+
+      - name: Package Installer & Delta Updates with Velopack
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.get_version.outputs.VERSION }}"
+          vpk pack `
+            --packId "SmartSwitcher" `
+            --packVersion "$ver" `
+            --packDir "publish" `
+            --mainExe "SmartSwitcher.exe" `
+            --icon "src/SmartSwitcher/Resources/app.ico" `
+            --packTitle "Smart Switcher" `
+            --packAuthors "Jubayer Ahmed" `
+            --outputDir "releases"
+
+      - name: Upload Installer Artifact (Actions Summary)
+        uses: actions/upload-artifact@v4
+        with:
+          name: SmartSwitcher-Setup-${{ steps.get_version.outputs.VERSION }}
+          path: releases/*Setup.exe
+          if-no-files-found: error
+
+      - name: Publish to GitHub Releases (Velopack Sync)
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        run: |
+          $tag = if (startsWith("${{ github.ref }}", "refs/tags/")) { "${{ github.ref_name }}" } else { "v${{ steps.get_version.outputs.VERSION }}" }
+          vpk upload github `
+            --repoUrl "${{ github.server_url }}/${{ github.repository }}" `
+            --token "${{ secrets.GITHUB_TOKEN }}" `
+            --publish `
+            --outputDir "releases" `
+            --tag "$tag"

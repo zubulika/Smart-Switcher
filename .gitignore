@@ -1,0 +1,35 @@
+## Visual Studio / .NET / C#
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+.vs/
+*.user
+*.userosscache
+*.suo
+*.userprefs
+*.pidb
+*.booproj
+*.svclog
+
+## Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.env
+venv/
+.venv/
+env/
+.env
+
+## OS & Editors
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+
+## Packaging output
+releases/
+artifacts/
+publish/
