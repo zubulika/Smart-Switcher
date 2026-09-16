@@ -83,7 +83,8 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
         shell: pwsh
         run: |
-          $tag = if (startsWith("${{ github.ref }}", "refs/tags/")) { "${{ github.ref_name }}" } else { "v${{ steps.get_version.outputs.VERSION }}" }
+          $ver = "${{ steps.get_version.outputs.VERSION }}"
+          $tag = "v$ver"
           vpk upload github `
             --repoUrl "${{ github.server_url }}/${{ github.repository }}" `
             --token "${{ secrets.GITHUB_TOKEN }}" `
